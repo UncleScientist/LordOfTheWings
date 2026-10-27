@@ -48,7 +48,7 @@ impl Fortress {
     fn perimeter_cones_missing(&self) -> usize {
         self.cones_missing(|target| {
             let grid_size = 2.max(1 + target / 4);
-            let lower_limit = (grid_size - 1) * 4;
+            let lower_limit = 8.max((grid_size - 1) * 4);
             let upper_limit = grid_size * 4;
             (lower_limit, upper_limit)
         })
@@ -98,6 +98,15 @@ mod test {
         let notes = "3,11,12,16,24,25";
         assert_eq!(
             9,
+            total_cones_needed(notes, Fortress::perimeter_cones_missing)
+        );
+    }
+
+    #[test]
+    fn test_perimeter_4_works() {
+        let notes = "4";
+        assert_eq!(
+            4,
             total_cones_needed(notes, Fortress::perimeter_cones_missing)
         );
     }
