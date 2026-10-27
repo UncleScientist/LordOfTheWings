@@ -12,6 +12,12 @@ fn main() {
         "Quest 1, part 2 = {}",
         total_cones_needed(data, Fortress::perimeter_cones_missing)
     );
+
+    let data = std::fs::read_to_string("input/everybody_codes_e2026_q01_p3.txt").expect("input");
+    println!(
+        "Quest 1, part 3 = {}",
+        total_cones_needed(data, Fortress::odd_square_cones_missing)
+    );
 }
 
 fn total_cones_needed<S: AsRef<str>>(input: S, func: impl Fn(&Fortress) -> usize) -> usize {
@@ -45,6 +51,18 @@ impl Fortress {
             let lower_limit = (grid_size - 1) * 4;
             let upper_limit = grid_size * 4;
             (lower_limit, upper_limit)
+        })
+    }
+
+    fn odd_square_cones_missing(&self) -> usize {
+        self.cones_missing(|target| {
+            let sqrt = target.isqrt();
+            let (low, high) = if sqrt.is_multiple_of(2) {
+                (sqrt - 1, sqrt + 1)
+            } else {
+                (sqrt, sqrt + 2)
+            };
+            (low * low - 1, high * high - 1)
         })
     }
 }
@@ -81,6 +99,15 @@ mod test {
         assert_eq!(
             9,
             total_cones_needed(notes, Fortress::perimeter_cones_missing)
+        );
+    }
+
+    #[test]
+    fn test_part3() {
+        let notes = "3,11,12,16,24,25";
+        assert_eq!(
+            61,
+            total_cones_needed(notes, Fortress::odd_square_cones_missing)
         );
     }
 }
