@@ -3,6 +3,9 @@ use std::{cmp::Ordering, collections::HashSet, convert::Infallible, str::FromStr
 fn main() {
     let data = std::fs::read_to_string("input/everybody_codes_e2026_q02_p1.txt").expect("file");
     println!("Quest 2, part 1 = {}", calculate_sum(data.lines()));
+
+    let data = std::fs::read_to_string("input/everybody_codes_e2026_q02_p2.txt").expect("file");
+    println!("Quest 2, part 2 = {}", calculate_missing_sum(data.lines()));
 }
 
 fn calculate_sum<'a, I>(lines: I) -> usize
@@ -12,6 +15,17 @@ where
     lines
         .into_iter()
         .map(|line| line.parse::<Notes>().unwrap().find_order())
+        .sum::<usize>()
+}
+
+fn calculate_missing_sum<'a, I>(lines: I) -> usize
+where
+    I: IntoIterator<Item = &'a str>,
+{
+    lines
+        .into_iter()
+        .map(|line| line.parse::<Notes>().unwrap().topo_sort())
+        .map(|comparison| comparison.find_order())
         .sum::<usize>()
 }
 
@@ -48,6 +62,31 @@ impl Notes {
         vec.iter()
             .map(|Blade(b)| *b as usize)
             .fold(0, |total, cur| (total * 10) + cur)
+    }
+
+    fn topo_sort(mut self) -> Self {
+        loop {
+            let mut inserted = false;
+            for b1 in &self.blades {
+                for b2 in &self.blades {
+                    for b3 in &self.blades {
+                        if self.harder.contains(&(*b1, *b2))
+                            && self.harder.contains(&(*b2, *b3))
+                            && !self.harder.contains(&(*b1, *b3))
+                        {
+                            self.harder.insert((*b1, *b3));
+                            self.softer.insert((*b3, *b1));
+                            inserted = true;
+                        }
+                    }
+                }
+            }
+            if !inserted {
+                break;
+            }
+        }
+
+        self
     }
 }
 
@@ -100,5 +139,11 @@ mod test {
     fn test_part1() {
         let data = std::fs::read_to_string("test-input/part1").expect("test file");
         assert_eq!(122157, calculate_sum(data.lines()));
+    }
+
+    #[test]
+    fn test_part2() {
+        let data = std::fs::read_to_string("test-input/part2").expect("test file");
+        assert_eq!(122157, calculate_missing_sum(data.lines()));
     }
 }
