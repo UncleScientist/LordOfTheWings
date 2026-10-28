@@ -2,13 +2,17 @@ use std::{cmp::Ordering, collections::HashSet, convert::Infallible, str::FromStr
 
 fn main() {
     let data = std::fs::read_to_string("input/everybody_codes_e2026_q02_p1.txt").expect("file");
+    println!("Quest 2, part 1 = {}", calculate_sum(data.lines()));
+}
 
-    println!(
-        "Quest 2, part 1 = {}",
-        data.lines()
-            .map(|line| line.parse::<Notes>().unwrap().find_order())
-            .sum::<usize>()
-    );
+fn calculate_sum<'a, I>(lines: I) -> usize
+where
+    I: IntoIterator<Item = &'a str>,
+{
+    lines
+        .into_iter()
+        .map(|line| line.parse::<Notes>().unwrap().find_order())
+        .sum::<usize>()
 }
 
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
@@ -90,5 +94,11 @@ mod test {
             .parse::<Notes>()
             .unwrap();
         assert_eq!(35124, note.find_order());
+    }
+
+    #[test]
+    fn test_part1() {
+        let data = std::fs::read_to_string("test-input/part1").expect("test file");
+        assert_eq!(122157, calculate_sum(data.lines()));
     }
 }
