@@ -6,6 +6,9 @@ fn main() {
 
     let data = std::fs::read_to_string("input/everybody_codes_e2026_q02_p2.txt").expect("file");
     println!("Quest 2, part 2 = {}", calculate_missing_sum(data.lines()));
+
+    let data = std::fs::read_to_string("input/everybody_codes_e2026_q02_p3.txt").expect("file");
+    println!("Quest 2, part 3 = {}", calculate_missing_sum(data.lines()));
 }
 
 fn calculate_sum<'a, I>(lines: I) -> usize
@@ -144,6 +147,12 @@ mod test {
     #[test]
     fn test_part2() {
         let data = std::fs::read_to_string("test-input/part2").expect("test file");
+        assert_eq!(122157, calculate_missing_sum(data.lines()));
+    }
+
+    #[test]
+    fn test_part3() {
+        let data = std::fs::read_to_string("test-input/part3").expect("test file");
         assert_eq!(122157, calculate_missing_sum(data.lines()));
     }
 }
