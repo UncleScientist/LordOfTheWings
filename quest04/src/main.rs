@@ -3,7 +3,14 @@ use std::{collections::HashMap, convert::Infallible, str::FromStr};
 fn main() {
     let data = std::fs::read_to_string("input/everybody_codes_e2026_q04_p1.txt").expect("file");
     let part1 = Results::new(data.lines().map(|line| line.parse::<LogLine>().unwrap()));
-    println!("Quest 4, part 1 = {}", part1.checksum());
+    println!("Quest 4, part 1 = {}", part1.total_time_checksum());
+
+    let data = std::fs::read_to_string("input/everybody_codes_e2026_q04_p2.txt").expect("file");
+    let part1 = Results::new(data.lines().map(|line| line.parse::<LogLine>().unwrap()));
+    println!(
+        "Quest 4, part 2 = {}",
+        part1.total_parts_and_time_checksum()
+    );
 }
 
 #[derive(Debug)]
@@ -24,7 +31,7 @@ impl Results {
         Self { participants }
     }
 
-    fn checksum(&self) -> usize {
+    fn total_time_checksum(&self) -> usize {
         let mut results = self
             .participants
             .values()
@@ -35,6 +42,26 @@ impl Results {
             .iter()
             .enumerate()
             .map(|(idx, val)| (idx + 1) * val)
+            .sum::<usize>()
+    }
+
+    fn total_parts_and_time_checksum(&self) -> usize {
+        let mut results = self
+            .participants
+            .values()
+            .map(|results| (results.len(), results.iter().map(|r| r.time).sum::<usize>()))
+            .collect::<Vec<_>>();
+        results.sort_by(|a, b| {
+            if a.0 == b.0 {
+                a.1.cmp(&b.1)
+            } else {
+                b.0.cmp(&a.0)
+            }
+        });
+        results
+            .iter()
+            .enumerate()
+            .map(|(idx, (_, val))| (idx + 1) * val)
             .sum::<usize>()
     }
 }
@@ -85,6 +112,13 @@ mod test {
     fn test_part_1() {
         let data = std::fs::read_to_string("test-input/part1").expect("file");
         let results = Results::new(data.lines().map(|line| line.parse::<LogLine>().unwrap()));
-        assert_eq!(27598, results.checksum());
+        assert_eq!(27598, results.total_time_checksum());
+    }
+
+    #[test]
+    fn test_part_2() {
+        let data = std::fs::read_to_string("test-input/part2").expect("file");
+        let results = Results::new(data.lines().map(|line| line.parse::<LogLine>().unwrap()));
+        assert_eq!(6470, results.total_parts_and_time_checksum());
     }
 }
