@@ -8,6 +8,14 @@ fn main() {
             .map(|line| line.parse::<Iso>().unwrap().value())
             .sum::<usize>()
     );
+
+    let data = std::fs::read_to_string("input/everybody_codes_e2026_q03_p2.txt").expect("file");
+    println!(
+        "Quest 3, part 2 = {}",
+        data.lines()
+            .map(|line| line.parse::<Iso>().unwrap().value())
+            .sum::<usize>()
+    );
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -18,11 +26,11 @@ struct Iso {
 
 impl Iso {
     fn value(&self) -> usize {
-        self.bases
+        self.digits
             .iter()
-            .zip(self.digits.iter())
+            .zip(self.bases.iter().cycle())
             .enumerate()
-            .map(|(exp, (base, factor))| base.pow(exp as u32) * factor)
+            .map(|(exp, (factor, base))| base.pow(exp as u32) * factor)
             .sum::<usize>()
     }
 }
