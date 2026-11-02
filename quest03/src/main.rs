@@ -16,6 +16,20 @@ fn main() {
             .map(|line| line.parse::<Iso>().unwrap().value())
             .sum::<usize>()
     );
+
+    let data = std::fs::read_to_string("input/everybody_codes_e2026_q03_p3.txt").expect("file");
+    let isos = data
+        .lines()
+        .map(|line| line.parse::<Iso>().unwrap())
+        .collect::<Vec<_>>();
+    println!("Quest 3, part 3 = {}", calc_part_3(&isos));
+}
+
+fn calc_part_3(isos: &[Iso]) -> usize {
+    isos.iter()
+        .filter(|iso| iso.is_valid())
+        .map(|iso| iso.value())
+        .sum::<usize>()
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -32,6 +46,33 @@ impl Iso {
             .enumerate()
             .map(|(exp, (factor, base))| base.pow(exp as u32) * factor)
             .sum::<usize>()
+    }
+
+    fn decimal_representation(&self) -> usize {
+        self.digits
+            .iter()
+            .rev()
+            .fold(0, |total, digit| total * 10 + digit)
+    }
+
+    fn is_valid(&self) -> bool {
+        let actual_value = self.value();
+        let dr = self.decimal_representation();
+
+        for val in 1..dr {
+            let s = format!("{val}")
+                .chars()
+                .rev()
+                .map(|ch| (ch as u8 - b'0') as usize)
+                .zip(self.bases.iter().cycle())
+                .enumerate()
+                .map(|(exp, (factor, base))| base.pow(exp as u32) * factor)
+                .sum::<usize>();
+            if s == actual_value {
+                return false;
+            }
+        }
+        true
     }
 }
 
@@ -75,5 +116,21 @@ mod test {
     fn test_calc_num() {
         let iso = "ISO-8742 2468".parse::<Iso>().unwrap();
         assert_eq!(1252, iso.value());
+    }
+
+    #[test]
+    fn test_decimal_representation() {
+        let iso = "ISO2-76877 123749".parse::<Iso>().unwrap();
+        assert_eq!(123749, iso.decimal_representation());
+    }
+
+    #[test]
+    fn test_part_3() {
+        let data = std::fs::read_to_string("test-input/part3").expect("file");
+        let isos = data
+            .lines()
+            .map(|line| line.parse::<Iso>().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(50987, calc_part_3(&isos));
     }
 }
