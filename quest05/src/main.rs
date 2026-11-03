@@ -1,7 +1,8 @@
 fn main() {
     let data = std::fs::read_to_string("input/everybody_codes_e2026_q05_p1.txt").expect("file");
     let map = Grid::new(data.lines());
-    println!("Quest 5, part 1 = {}", map.landmass_size());
+    let landmass = map.find_landmass();
+    println!("Quest 5, part 1 = {}", Grid::landmass_size(&landmass));
 }
 
 #[derive(Debug)]
@@ -37,7 +38,7 @@ impl Grid {
         }
     }
 
-    fn landmass_size(&self) -> usize {
+    fn find_landmass(&self) -> Vec<Tile> {
         let mut mygrid = self.grid.clone();
 
         let start = ((self.height / 2) * self.width + self.width / 2) as isize;
@@ -85,9 +86,11 @@ impl Grid {
             }
             mygrid = nextgrid;
         }
-
         mygrid
-            .iter()
+    }
+
+    fn landmass_size(grid: &[Tile]) -> usize {
+        grid.iter()
             .filter(|tile| matches!(tile, Tile::Land))
             .count()
     }
@@ -115,6 +118,7 @@ mod test {
     fn test_part1() {
         let data = std::fs::read_to_string("test-input/part1").expect("file");
         let map = Grid::new(data.lines());
-        assert_eq!(137, map.landmass_size());
+        let landmass = map.find_landmass();
+        assert_eq!(137, Grid::landmass_size(&landmass));
     }
 }
