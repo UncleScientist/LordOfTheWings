@@ -2,7 +2,12 @@ fn main() {
     let data = std::fs::read_to_string("input/everybody_codes_e2026_q05_p1.txt").expect("file");
     let map = Grid::new(data.lines());
     let landmass = map.find_landmass();
-    println!("Quest 5, part 1 = {}", Grid::landmass_size(&landmass));
+    println!("Quest 5, part 1 = {}", landmass.landmass_size());
+
+    let data = std::fs::read_to_string("input/everybody_codes_e2026_q05_p2.txt").expect("file");
+    let map = Grid::new(data.lines());
+    let landmass = map.find_landmass();
+    println!("Quest 5, part 2 = {}", landmass.beach_size());
 }
 
 #[derive(Debug)]
@@ -38,7 +43,7 @@ impl Grid {
         }
     }
 
-    fn find_landmass(&self) -> Vec<Tile> {
+    fn find_landmass(&self) -> Self {
         let mut mygrid = self.grid.clone();
 
         let start = ((self.height / 2) * self.width + self.width / 2) as isize;
@@ -86,13 +91,121 @@ impl Grid {
             }
             mygrid = nextgrid;
         }
-        mygrid
+
+        mygrid.iter_mut().for_each(|item| {
+            if !matches!(item, Tile::Land) {
+                *item = Tile::Water
+            }
+        });
+
+        Self {
+            width: self.width,
+            height: self.height,
+            grid: mygrid,
+        }
     }
 
-    fn landmass_size(grid: &[Tile]) -> usize {
-        grid.iter()
+    fn landmass_size(&self) -> usize {
+        self.grid
+            .iter()
             .filter(|tile| matches!(tile, Tile::Land))
             .count()
+    }
+
+    fn beach_size(&self) -> usize {
+        let mut mygrid = self.grid.clone();
+
+        let width = self.width as isize;
+
+        for row in 0..self.height {
+            for col in 0..self.width {
+                let pos = ((row * self.width) + col) as isize;
+                if mygrid[pos as usize] != Tile::Land {
+                    continue;
+                }
+
+                let neighbors = [
+                    pos - width - 1,
+                    pos - width,
+                    pos - width + 1,
+                    pos - 1,
+                    pos + 1,
+                    pos + width - 1,
+                    pos + width,
+                    pos + width + 1,
+                ];
+                for loc in neighbors {
+                    if loc < 0
+                        || loc >= mygrid.len() as isize
+                        || mygrid[loc as usize] == Tile::Water
+                    {
+                        mygrid[pos as usize] = Tile::Sand;
+                        break;
+                    }
+                }
+            }
+        }
+
+        let mut grid_changed = true;
+        while grid_changed {
+            grid_changed = false;
+            let mut nextgrid = mygrid.clone();
+            for row in 0..self.height {
+                for col in 0..self.width {
+                    let pos = ((row * self.width) + col) as isize;
+                    let neighbors = [
+                        pos - width - 1,
+                        pos - width,
+                        pos - width + 1,
+                        pos - 1,
+                        pos + 1,
+                        pos + width - 1,
+                        pos + width,
+                        pos + width + 1,
+                    ];
+                    let mut count = 0;
+
+                    for loc in neighbors {
+                        if loc < 0 || loc >= mygrid.len() as isize {
+                            continue;
+                        }
+
+                        if matches!(mygrid[loc as usize], Tile::Sand) {
+                            count += 1;
+                        }
+                    }
+
+                    if count >= 5 && nextgrid[pos as usize] != Tile::Sand {
+                        nextgrid[pos as usize] = Tile::Sand;
+                        grid_changed = true;
+                    }
+                }
+            }
+            mygrid = nextgrid;
+        }
+
+        mygrid
+            .into_iter()
+            .filter(|tile| *tile == Tile::Sand)
+            .count()
+    }
+
+    fn _print_grid(&self) {
+        for row in 0..self.height {
+            for col in 0..self.width {
+                print!(
+                    "{}",
+                    match self.grid[row * self.width + col] {
+                        Tile::Light => '0',
+                        Tile::Dark => '1',
+                        Tile::Land => '#',
+                        Tile::Water => '.',
+                        Tile::Sand => '=',
+                    }
+                );
+            }
+            println!();
+        }
     }
 }
 
@@ -101,7 +214,8 @@ enum Tile {
     Light,
     Dark,
     Land,
-    // Water
+    Water,
+    Sand,
 }
 
 impl Tile {
@@ -120,5 +234,13 @@ mod test {
         let map = Grid::new(data.lines());
         let landmass = map.find_landmass();
         assert_eq!(137, Grid::landmass_size(&landmass));
+    }
+
+    #[test]
+    fn test_part2() {
+        let data = std::fs::read_to_string("test-input/part2").expect("file");
+        let map = Grid::new(data.lines());
+        let landmass = map.find_landmass();
+        assert_eq!(69, Grid::beach_size(&landmass));
     }
 }
