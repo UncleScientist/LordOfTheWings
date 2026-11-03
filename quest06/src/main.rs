@@ -4,6 +4,10 @@ fn main() {
     let data = include_str!("../input/everybody_codes_e2026_q06_p1.txt");
     let recipe = Recipe::new(data.lines());
     println!("Quest 6, part 1 = {}", recipe.count_ingredients_for("NULL"));
+
+    let data = include_str!("../input/everybody_codes_e2026_q06_p2.txt");
+    let recipe = Recipe::new(data.lines());
+    println!("Quest 6, part 2 = {}", recipe.count_used_by("NULL"));
 }
 
 #[derive(Debug)]
@@ -46,6 +50,43 @@ impl Recipe {
 
         seen.len() - 1
     }
+
+    fn count_used_by(&self, start: &str) -> usize {
+        let mut seen = HashSet::new();
+        let mut queue = VecDeque::from(
+            self.ingredients
+                .iter()
+                .filter_map(|(k, v)| {
+                    if v.contains(&start.to_string()) {
+                        Some(k)
+                    } else {
+                        None
+                    }
+                })
+                .cloned()
+                .collect::<Vec<_>>(),
+        );
+
+        while let Some(entry) = queue.pop_front() {
+            if !seen.insert(entry.clone()) {
+                continue;
+            }
+
+            for source in self.ingredients.iter().filter_map(|(k, v)| {
+                if v.contains(&entry.to_string()) {
+                    Some(k)
+                } else {
+                    None
+                }
+            }) {
+                if !seen.contains(source) && source != start {
+                    queue.push_back(source.clone());
+                }
+            }
+        }
+
+        seen.len()
+    }
 }
 
 #[cfg(test)]
@@ -57,5 +98,12 @@ mod test {
         let data = include_str!("../test-input/part1");
         let recipe = Recipe::new(data.lines());
         assert_eq!(7, recipe.count_ingredients_for("NULL"));
+    }
+
+    #[test]
+    fn test_part2() {
+        let data = include_str!("../test-input/part2");
+        let recipe = Recipe::new(data.lines());
+        assert_eq!(6, recipe.count_used_by("NULL"));
     }
 }
