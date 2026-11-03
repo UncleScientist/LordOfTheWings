@@ -9,6 +9,13 @@ fn main() {
     let landmass = map.find_landmass();
     let beach = landmass.find_beach();
     println!("Quest 5, part 2 = {}", beach.beach_size());
+
+    let data = std::fs::read_to_string("input/everybody_codes_e2026_q05_p3.txt").expect("file");
+    let map = Grid::new(data.lines());
+    let landmass = map.find_landmass();
+    let beach = landmass.find_beach();
+    let trees = beach.find_trees();
+    println!("Quest 5, part 3 = {}", trees.tree_size());
 }
 
 #[derive(Debug)]
@@ -196,6 +203,105 @@ impl Grid {
         self.grid.iter().filter(|tile| **tile == Tile::Sand).count()
     }
 
+    fn find_trees(&self) -> Self {
+        let mut mygrid = self.grid.clone();
+
+        let width = self.width as isize;
+
+        for row in 0..self.height {
+            for col in 0..self.width {
+                let pos = ((row * self.width) + col) as isize;
+                if mygrid[pos as usize] != Tile::Land {
+                    continue;
+                }
+
+                let neighbors = [
+                    // outer twelve
+                    pos - 2 * width - 1,
+                    pos - 2 * width,
+                    pos - 2 * width + 1,
+                    pos - width - 2,
+                    pos - 2,
+                    pos + width - 2,
+                    pos - width + 2,
+                    pos + 2,
+                    pos + width + 2,
+                    pos + 2 * width - 1,
+                    pos + 2 * width,
+                    pos + 2 * width + 1,
+                    // inner eight
+                    pos - width - 1,
+                    pos - width,
+                    pos - width + 1,
+                    pos - 1,
+                    pos + 1,
+                    pos + width - 1,
+                    pos + width,
+                    pos + width + 1,
+                ];
+
+                let mut count = 0;
+                for loc in neighbors {
+                    if mygrid[loc as usize] != Tile::Land && mygrid[loc as usize] != Tile::Tree {
+                        break;
+                    }
+                    count += 1;
+                }
+                if count == neighbors.len() {
+                    mygrid[pos as usize] = Tile::Tree;
+                }
+            }
+        }
+
+        for _ in 0..2 {
+            let mut nextgrid = mygrid.clone();
+            for row in 0..self.height {
+                for col in 0..self.width {
+                    let pos = ((row * self.width) + col) as isize;
+                    let neighbors = [
+                        pos - width - 1,
+                        pos - width,
+                        pos - width + 1,
+                        pos - 1,
+                        pos + 1,
+                        pos + width - 1,
+                        pos + width,
+                        pos + width + 1,
+                    ];
+                    let mut count = 0;
+
+                    for loc in neighbors {
+                        if loc < 0 || loc >= mygrid.len() as isize {
+                            continue;
+                        }
+                        if mygrid[loc as usize] == Tile::Sand {
+                            count = 0;
+                            break;
+                        }
+                        if mygrid[loc as usize] == Tile::Tree {
+                            count += 1;
+                        }
+                    }
+
+                    if count >= 4 {
+                        nextgrid[pos as usize] = Tile::Tree;
+                    }
+                }
+            }
+            mygrid = nextgrid;
+        }
+
+        Self {
+            width: self.width,
+            height: self.height,
+            grid: mygrid,
+        }
+    }
+
+    fn tree_size(&self) -> usize {
+        self.grid.iter().filter(|tile| **tile == Tile::Tree).count()
+    }
+
     fn _print_grid(&self) {
         for row in 0..self.height {
             for col in 0..self.width {
@@ -207,6 +313,7 @@ impl Grid {
                         Tile::Land => '#',
                         Tile::Water => '.',
                         Tile::Sand => '=',
+                        Tile::Tree => '@',
                     }
                 );
             }
@@ -222,6 +329,7 @@ enum Tile {
     Land,
     Water,
     Sand,
+    Tree,
 }
 
 impl Tile {
@@ -249,5 +357,15 @@ mod test {
         let landmass = map.find_landmass();
         let beach = landmass.find_beach();
         assert_eq!(69, beach.beach_size());
+    }
+
+    #[test]
+    fn test_part3() {
+        let data = std::fs::read_to_string("test-input/part3").expect("file");
+        let map = Grid::new(data.lines());
+        let landmass = map.find_landmass();
+        let beach = landmass.find_beach();
+        let trees = beach.find_trees();
+        assert_eq!(14, trees.tree_size());
     }
 }
