@@ -7,7 +7,8 @@ fn main() {
     let data = std::fs::read_to_string("input/everybody_codes_e2026_q05_p2.txt").expect("file");
     let map = Grid::new(data.lines());
     let landmass = map.find_landmass();
-    println!("Quest 5, part 2 = {}", landmass.beach_size());
+    let beach = landmass.find_beach();
+    println!("Quest 5, part 2 = {}", beach.beach_size());
 }
 
 #[derive(Debug)]
@@ -112,7 +113,7 @@ impl Grid {
             .count()
     }
 
-    fn beach_size(&self) -> usize {
+    fn find_beach(&self) -> Self {
         let mut mygrid = self.grid.clone();
 
         let width = self.width as isize;
@@ -184,10 +185,15 @@ impl Grid {
             mygrid = nextgrid;
         }
 
-        mygrid
-            .into_iter()
-            .filter(|tile| *tile == Tile::Sand)
-            .count()
+        Self {
+            width: self.width,
+            height: self.height,
+            grid: mygrid,
+        }
+    }
+
+    fn beach_size(&self) -> usize {
+        self.grid.iter().filter(|tile| **tile == Tile::Sand).count()
     }
 
     fn _print_grid(&self) {
@@ -241,6 +247,7 @@ mod test {
         let data = std::fs::read_to_string("test-input/part2").expect("file");
         let map = Grid::new(data.lines());
         let landmass = map.find_landmass();
-        assert_eq!(69, Grid::beach_size(&landmass));
+        let beach = landmass.find_beach();
+        assert_eq!(69, beach.beach_size());
     }
 }
