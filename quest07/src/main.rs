@@ -37,23 +37,24 @@ impl Battlefield {
         }
     }
 
-    fn total_impulse(&self, mut impulse: usize) -> usize {
+    fn total_impulse(&self, mut impulse_amt: usize) -> usize {
         let mut energy_acquired = vec![0; self.field.len()];
+        let mut impulses = vec![0usize; self.field.len()];
+        impulses[self.max_conn_idx] = 1;
 
-        let mut send_impulse = Vec::from([self.max_conn_idx]);
-        energy_acquired[self.max_conn_idx] = impulse;
-        impulse -= 1;
+        energy_acquired[self.max_conn_idx] = impulse_amt;
+        impulse_amt -= 1;
 
-        while impulse > 0 {
-            let mut next_impulse = Vec::new();
-            for idx in &send_impulse {
-                for c in &self.field[*idx].connections {
-                    energy_acquired[*c - 1] += impulse;
-                    next_impulse.push(*c - 1);
+        while impulse_amt > 0 {
+            let mut next_impulses = vec![0; self.field.len()];
+            for (idx, count) in impulses.iter().enumerate().filter(|(_, c)| **c != 0) {
+                for c in &self.field[idx].connections {
+                    energy_acquired[*c - 1] += impulse_amt * *count;
+                    next_impulses[*c - 1] += 1 * *count;
                 }
             }
-            impulse -= 1;
-            send_impulse = next_impulse;
+            impulse_amt -= 1;
+            impulses = next_impulses;
         }
 
         (0..energy_acquired.len())
