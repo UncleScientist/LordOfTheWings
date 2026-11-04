@@ -4,6 +4,10 @@ fn main() {
     let data = include_str!("../input/everybody_codes_e2026_q07_p1.txt");
     let battlefield = Battlefield::new(data.lines());
     println!("Quest 7, part 1 = {}", battlefield.total_impulse(5));
+
+    let data = include_str!("../input/everybody_codes_e2026_q07_p2.txt");
+    let battlefield = Battlefield::new(data.lines());
+    println!("Quest 7, part 2 = {}", battlefield.total_impulse(10));
 }
 
 #[derive(Debug)]
@@ -112,5 +116,12 @@ mod test {
         let part1_data = include_str!("../test-input/part1");
         let battlefield = Battlefield::new(part1_data.lines());
         assert_eq!(102, battlefield.total_impulse(5));
+    }
+
+    #[test]
+    fn test_part2() {
+        let part2_data = include_str!("../test-input/part2");
+        let battlefield = Battlefield::new(part2_data.lines());
+        assert_eq!(1316, battlefield.total_impulse(10));
     }
 }
