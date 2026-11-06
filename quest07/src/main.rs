@@ -1,13 +1,20 @@
 use std::{convert::Infallible, str::FromStr};
 
 fn main() {
-    let data = include_str!("../input/everybody_codes_e2026_q07_p1.txt");
+    let data = std::fs::read_to_string("input/everybody_codes_e2026_q07_p1.txt").expect("file");
     let battlefield = Battlefield::new(data.lines());
     println!("Quest 7, part 1 = {}", battlefield.max_conn_total(5));
 
-    let data = include_str!("../input/everybody_codes_e2026_q07_p2.txt");
+    let data = std::fs::read_to_string("input/everybody_codes_e2026_q07_p2.txt").expect("file");
     let battlefield = Battlefield::new(data.lines());
     println!("Quest 7, part 2 = {}", battlefield.max_conn_total(10));
+
+    let data = std::fs::read_to_string("input/everybody_codes_e2026_q07_p3.txt").expect("file");
+    let battlefield = Battlefield::new(data.lines());
+    println!(
+        "Quest 7, part 3 = {}",
+        battlefield.best_explosive_total(10, 1_000_000)
+    );
 }
 
 #[derive(Debug)]
@@ -43,70 +50,69 @@ impl Battlefield {
 
     fn total_impulse(
         &self,
-        mut impulse_amt: usize,
+        impulse_amt: usize,
         starting_point: usize,
         explosion: Option<usize>,
     ) -> usize {
-        println!("Using cloud {} as starting point", starting_point + 1);
-
         let mut energy_acquired = self
             .field
             .iter()
             .map(|cloud| cloud.energy)
             .collect::<Vec<_>>();
-        let mut impulses = vec![0usize; self.field.len()];
+
+        // id | 0   1    2    3    4    5  ... 10
+        // 0  |                         4
+        // 1  |                         0  ...  1
+
+        let max_impulse_size = 1 + 10.max(impulse_amt);
+        let mut impulses = vec![vec![0usize; max_impulse_size]; self.field.len()];
         let mut exploded = vec![false; self.field.len()];
-        impulses[starting_point] = 1;
+        impulses[starting_point][impulse_amt] = 1;
 
-        energy_acquired[starting_point] += impulse_amt;
-        impulse_amt -= 1;
+        let mut sent_pulse = true;
+        while sent_pulse {
+            sent_pulse = false;
 
-        while impulse_amt > 0 {
-            let mut next_impulses = vec![0; self.field.len()];
-            for (idx, count) in impulses.iter().enumerate().filter(|(_, c)| **c != 0) {
-                if exploded[idx] {
+            let mut next_impulses = vec![vec![0; max_impulse_size]; self.field.len()];
+            for cloud_idx in 0..self.field.len() {
+                if exploded[cloud_idx] {
                     continue;
                 }
-                for c in &self.field[idx].connections {
-                    if exploded[*c - 1] {
-                        continue;
-                    }
-                    energy_acquired[*c - 1] += impulse_amt * *count;
-                    next_impulses[*c - 1] += 1 * *count;
-                }
-            }
 
-            println!(" {energy_acquired:?}");
-            if let Some(explode) = explosion {
-                let mut changed = true;
-                while changed {
-                    changed = false;
-                    for idx in 0..energy_acquired.len() {
-                        if !exploded[idx] && energy_acquired[idx] >= explode {
-                            println!("  cloud {} exploded", self.field[idx].id);
-                            exploded[idx] = true;
-                            for c in &self.field[idx].connections {
-                                if !exploded[*c - 1] {
-                                    energy_acquired[*c - 1] += 10;
-                                    next_impulses[*c - 1] += 1;
-                                    changed = true;
-                                }
+                for (impulse_size, impulse_count) in impulses[cloud_idx].iter().enumerate() {
+                    if impulse_size > 0 && *impulse_count > 0 {
+                        energy_acquired[cloud_idx] += impulse_size * impulse_count;
+                        for conn in &self.field[cloud_idx].connections {
+                            if !exploded[*conn - 1] {
+                                next_impulses[*conn - 1][impulse_size - 1] += impulse_count;
+                                sent_pulse = true;
                             }
                         }
                     }
                 }
             }
 
-            impulse_amt -= 1;
+            if let Some(explode) = explosion {
+                for idx in 0..energy_acquired.len() {
+                    if !exploded[idx] && energy_acquired[idx] >= explode {
+                        exploded[idx] = true;
+                        for c in &self.field[idx].connections {
+                            if !exploded[*c - 1] {
+                                next_impulses[*c - 1][10] += 1;
+                                sent_pulse = true;
+                            }
+                        }
+                    }
+                }
+            }
+
             impulses = next_impulses;
         }
 
-        let energy = (0..energy_acquired.len())
+        (0..energy_acquired.len())
             .filter(|idx| !exploded[*idx])
             .map(|idx| energy_acquired[idx])
-            .sum();
-        println!("Total energy: {energy}");
-        energy
+            .sum()
     }
 
     fn best_explosive_total(&self, impulse_amt: usize, explosion_limit: usize) -> usize {
