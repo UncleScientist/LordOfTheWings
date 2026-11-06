@@ -10,7 +10,7 @@ fn main() {
     println!("Quest 8, part 1 = {}", field.part2_energy());
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Field {
     grid: Vec<Plot>,
     width: usize,
@@ -49,6 +49,7 @@ impl AddAssign<isize> for Index {
 #[derive(Debug, PartialEq, Copy, Clone)]
 enum Plot {
     Ent(u8),
+    Seed(u8),
     Empty,
 }
 
@@ -73,6 +74,7 @@ impl Display for Plot {
         match self {
             Plot::Ent(x) => write!(f, "{x}"),
             Plot::Empty => write!(f, "."),
+            Plot::Seed(_) => write!(f, "X"),
         }
     }
 }
@@ -101,13 +103,33 @@ impl Field {
         }
     }
 
+    fn get_rc(first: Index, second: Index) -> (usize, usize) {
+        match (first, second) {
+            (Index::Row(r), Index::Col(c)) => (r, c),
+            (Index::Col(c), Index::Row(r)) => (r, c),
+            _ => panic!("two rows or two cols, or out of bounds: {first:?}, {second:?}"),
+        }
+    }
+
     fn get(&self, first: Index, second: Index) -> Plot {
+        let (row, col) = Self::get_rc(first, second);
+        self.grid[row * self.width + col]
+    }
+
+    fn set(&mut self, first: Index, second: Index, plot: Plot) {
+        let (row, col) = Self::get_rc(first, second);
+        self.grid[row * self.width + col] = plot
+    }
+
+    fn in_bounds(&self, first: Index, second: Index) -> bool {
         let (row, col) = match (first, second) {
             (Index::Row(r), Index::Col(c)) => (r, c),
             (Index::Col(c), Index::Row(r)) => (r, c),
+            (Index::OutOfBounds, _) => return false,
+            (_, Index::OutOfBounds) => return false,
             _ => panic!("two rows or two cols"),
         };
-        self.grid[row * self.width + col]
+        row < self.height && col < self.width
     }
 
     fn part1_energy(&self) -> usize {
@@ -117,20 +139,52 @@ impl Field {
             1,
             1,
         )
+        .0
+    }
+
+    fn round1(&self) -> (usize, usize, Self) {
+        let forward_row = (0..self.height).map(Index::Row);
+        let forward_col = (0..self.width).map(Index::Col);
+        self.energy_from_dir(forward_row, forward_col, 1, 1)
+    }
+
+    fn round2(&self) -> (usize, usize, Self) {
+        let forward_row = (0..self.height).map(Index::Row);
+        let reverse_col = (0..self.width).rev().map(Index::Col);
+        self.energy_from_dir(forward_row, reverse_col, 1, -1)
+    }
+
+    fn round3(&self) -> (usize, usize, Self) {
+        let reverse_col = (0..self.width).rev().map(Index::Col);
+        let forward_row = (0..self.height).map(Index::Row);
+        self.energy_from_dir(reverse_col, forward_row, -1, 0)
+    }
+
+    fn round4(&self) -> (usize, usize, Self) {
+        let reverse_row = (0..self.height).rev().map(Index::Row);
+        let reverse_col = (0..self.width).rev().map(Index::Col);
+        self.energy_from_dir(reverse_row, reverse_col, -1, -1)
+    }
+
+    fn round5(&self) -> (usize, usize, Self) {
+        let reverse_row = (0..self.height).rev().map(Index::Row);
+        let forward_col = (0..self.width).map(Index::Col);
+        self.energy_from_dir(reverse_row, forward_col, -1, 1)
+    }
+
+    fn round6(&self) -> (usize, usize, Self) {
+        let forward_col = (0..self.width).map(Index::Col);
+        let forward_row = (0..self.height).map(Index::Row);
+        self.energy_from_dir(forward_col, forward_row, 1, 0)
     }
 
     fn part2_energy(&self) -> usize {
-        let forward_row = (0..self.height).map(Index::Row);
-        let forward_col = (0..self.width).map(Index::Col);
-        let reverse_row = (0..self.height).rev().map(Index::Row);
-        let reverse_col = (0..self.width).rev().map(Index::Col);
-
-        self.energy_from_dir(forward_row.clone(), forward_col.clone(), 1, 1)
-            + self.energy_from_dir(forward_row.clone(), reverse_col.clone(), 1, -1)
-            + self.energy_from_dir(reverse_col.clone(), forward_row.clone(), -1, 0)
-            + self.energy_from_dir(reverse_row.clone(), reverse_col.clone(), -1, -1)
-            + self.energy_from_dir(reverse_row.clone(), forward_col.clone(), -1, 1)
-            + self.energy_from_dir(forward_col.clone(), forward_row.clone(), 1, 0)
+        self.round1().0
+            + self.round2().0
+            + self.round3().0
+            + self.round4().0
+            + self.round5().0
+            + self.round6().0
     }
 
     fn energy_from_dir<O, I>(
@@ -139,12 +193,15 @@ impl Field {
         inner_iter: I,
         delta_outer: isize,
         delta_inner: isize,
-    ) -> usize
+    ) -> (usize, usize, Self)
     where
         O: Iterator<Item = Index>,
         I: IntoIterator<Item = Index> + Clone,
     {
         let mut energy_needed = 0;
+        let mut fully_grown_ents = 0;
+
+        let mut next_field = self.clone();
 
         let mut seen = HashSet::new();
 
@@ -163,6 +220,12 @@ impl Field {
                             Plot::Ent(h) => {
                                 if h > shadow_height {
                                     energy_needed += 1;
+                                    if h == 9 {
+                                        fully_grown_ents += 1;
+                                        next_field.set(diag_outer, diag_inner, Plot::Seed(3));
+                                    } else {
+                                        next_field.set(diag_outer, diag_inner, Plot::Ent(h + 1));
+                                    }
                                 }
                                 if shadow_height > 0 {
                                     shadow_height = (shadow_height - 1).max(h - 1);
@@ -171,6 +234,13 @@ impl Field {
                                 }
                             }
                             Plot::Empty => {}
+                            Plot::Seed(s) => {
+                                if s == 0 {
+                                    next_field.set(diag_outer, diag_inner, Plot::Ent(1));
+                                } else {
+                                    next_field.set(diag_outer, diag_inner, Plot::Seed(s - 1));
+                                }
+                            }
                         }
                         diag_outer += delta_outer;
                         diag_inner += delta_inner;
@@ -179,7 +249,7 @@ impl Field {
             }
         }
 
-        energy_needed
+        (energy_needed, fully_grown_ents, next_field)
     }
 
     fn _print(&self) {
@@ -189,17 +259,6 @@ impl Field {
             }
             println!();
         }
-    }
-
-    fn in_bounds(&self, first: Index, second: Index) -> bool {
-        let (row, col) = match (first, second) {
-            (Index::Row(r), Index::Col(c)) => (r, c),
-            (Index::Col(c), Index::Row(r)) => (r, c),
-            (Index::OutOfBounds, _) => return false,
-            (_, Index::OutOfBounds) => return false,
-            _ => panic!("two rows or two cols"),
-        };
-        row < self.height && col < self.width
     }
 }
 
@@ -231,34 +290,11 @@ mod test {
     fn test_individual_rounds_part2() {
         let field = Field::new(include_str!("../test-input/part2").lines());
 
-        let forward_row = (0..field.height).map(|row| Index::Row(row));
-        let forward_col = (0..field.width).map(|col| Index::Col(col));
-        let reverse_row = (0..field.height).rev().map(|row| Index::Row(row));
-        let reverse_col = (0..field.width).rev().map(|col| Index::Col(col));
-
-        assert_eq!(
-            32,
-            field.energy_from_dir(forward_row.clone(), forward_col.clone(), 1, 1),
-        );
-        assert_eq!(
-            32,
-            field.energy_from_dir(forward_row.clone(), reverse_col.clone(), 1, -1),
-        );
-        assert_eq!(
-            29,
-            field.energy_from_dir(reverse_col.clone(), forward_row.clone(), -1, 0),
-        );
-        assert_eq!(
-            32,
-            field.energy_from_dir(reverse_row.clone(), reverse_col.clone(), -1, -1),
-        );
-        assert_eq!(
-            30,
-            field.energy_from_dir(reverse_row.clone(), forward_col.clone(), -1, 1),
-        );
-        assert_eq!(
-            32,
-            field.energy_from_dir(forward_col.clone(), forward_row.clone(), 1, 0),
-        );
+        assert_eq!(32, field.round1().0);
+        assert_eq!(32, field.round2().0);
+        assert_eq!(29, field.round3().0);
+        assert_eq!(32, field.round4().0);
+        assert_eq!(30, field.round5().0);
+        assert_eq!(32, field.round6().0);
     }
 }
