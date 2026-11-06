@@ -1,13 +1,17 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
 fn main() {
-    let data = include_str!("../input/everybody_codes_e2026_q06_p1.txt");
+    let data = std::fs::read_to_string("input/everybody_codes_e2026_q06_p1.txt").expect("file");
     let recipe = Recipe::new(data.lines());
     println!("Quest 6, part 1 = {}", recipe.count_ingredients_for("NULL"));
 
-    let data = include_str!("../input/everybody_codes_e2026_q06_p2.txt");
+    let data = std::fs::read_to_string("input/everybody_codes_e2026_q06_p2.txt").expect("file");
     let recipe = Recipe::new(data.lines());
     println!("Quest 6, part 2 = {}", recipe.count_used_by("NULL"));
+
+    let data = std::fs::read_to_string("input/everybody_codes_e2026_q06_p3.txt").expect("file");
+    let recipe = Recipe::new(data.lines());
+    println!("Quest 6, part 3 = {}", recipe.uses_two_nulls());
 }
 
 #[derive(Debug)]
@@ -52,6 +56,10 @@ impl Recipe {
     }
 
     fn count_used_by(&self, start: &str) -> usize {
+        self.used_by(start).len()
+    }
+
+    fn used_by(&self, start: &str) -> HashSet<String> {
         let mut seen = HashSet::new();
         let mut queue = VecDeque::from(
             self.ingredients
@@ -85,7 +93,19 @@ impl Recipe {
             }
         }
 
-        seen.len()
+        seen
+    }
+
+    fn uses_two_nulls(&self) -> usize {
+        let v1 = self.used_by("NULLv1");
+        let v2 = self.used_by("NULLv2");
+        let v3 = self.used_by("NULLv3");
+
+        let v1v2 = v1.intersection(&v2);
+        let v1v3 = v1.intersection(&v3);
+        let v2v3 = v2.intersection(&v3);
+
+        v1v2.chain(v1v3).chain(v2v3).collect::<HashSet<_>>().len()
     }
 }
 
@@ -105,5 +125,12 @@ mod test {
         let data = include_str!("../test-input/part2");
         let recipe = Recipe::new(data.lines());
         assert_eq!(6, recipe.count_used_by("NULL"));
+    }
+
+    #[test]
+    fn test_part3() {
+        let data = include_str!("../test-input/part3");
+        let recipe = Recipe::new(data.lines());
+        assert_eq!(3, recipe.uses_two_nulls());
     }
 }
