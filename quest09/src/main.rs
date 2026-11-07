@@ -9,6 +9,15 @@ fn main() {
             .map(|plant| plant.time_limit())
             .sum::<usize>()
     );
+
+    let data = std::fs::read_to_string("input/everybody_codes_e2026_q09_p2.txt").expect("file");
+    println!(
+        "Quest 9, part 2 = {}",
+        data.lines()
+            .map(|line| line.parse::<Plant>().unwrap())
+            .map(|plant| plant.leaf_limit())
+            .sum::<usize>()
+    );
 }
 
 #[derive(Debug, PartialEq)]
@@ -25,6 +34,32 @@ impl Plant {
         let mut time = 1;
 
         while splits + branches.iter().sum::<usize>() < self.limit {
+            time += 1;
+            let mut next = Vec::new();
+            for b in &branches {
+                let next_len = *b + 1;
+                if next_len == self.growth {
+                    next.push(next_len / 2);
+                    next.push(next_len / 2);
+                    next.push(1);
+                    splits += 1;
+                } else {
+                    next.push(next_len);
+                }
+            }
+
+            branches = next;
+        }
+
+        time
+    }
+
+    fn leaf_limit(&self) -> usize {
+        let mut branches = vec![1usize];
+        let mut splits = 0;
+        let mut time = 1;
+
+        while branches.len() - splits < self.limit {
             time += 1;
             let mut next = Vec::new();
             for b in &branches {
@@ -90,5 +125,16 @@ mod test {
             .map(|plant| plant.time_limit())
             .sum::<usize>();
         assert_eq!(27, plant_time);
+    }
+
+    #[test]
+    fn test_part2() {
+        let data = include_str!("../test-input/part2");
+        let plant_time = data
+            .lines()
+            .map(|line| line.parse::<Plant>().unwrap())
+            .map(|plant| plant.leaf_limit())
+            .sum::<usize>();
+        assert_eq!(42, plant_time);
     }
 }
