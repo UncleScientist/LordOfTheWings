@@ -7,7 +7,11 @@ fn main() {
 
     let data = std::fs::read_to_string("input/everybody_codes_e2026_q08_p2.txt").expect("file");
     let field = Field::new(data.lines());
-    println!("Quest 8, part 1 = {}", field.part2_energy());
+    println!("Quest 8, part 2 = {}", field.part2_energy());
+
+    let data = std::fs::read_to_string("input/everybody_codes_e2026_q08_p3.txt").expect("file");
+    let field = Field::new(data.lines());
+    println!("Quest 8, part 3 = {}", field.part3_energy());
 }
 
 #[derive(Debug, Clone)]
@@ -55,7 +59,7 @@ enum Plot {
 
 impl Plot {
     fn is_ent(&self) -> bool {
-        matches!(self, Self::Ent(_))
+        matches!(self, Self::Ent(_) | Self::Seed(_))
     }
 }
 
@@ -64,6 +68,7 @@ impl From<char> for Plot {
         match value {
             '.' => Self::Empty,
             '1'..='9' => Self::Ent(value as u8 - b'0'),
+            'A'..='D' => Self::Seed(value as u8 - b'A'),
             _ => panic!("invalid value {value}"),
         }
     }
@@ -74,7 +79,13 @@ impl Display for Plot {
         match self {
             Plot::Ent(x) => write!(f, "{x}"),
             Plot::Empty => write!(f, "."),
-            Plot::Seed(_) => write!(f, "X"),
+            Plot::Seed(v) => match v {
+                0 => write!(f, "A"),
+                1 => write!(f, "B"),
+                2 => write!(f, "C"),
+                3 => write!(f, "D"),
+                _ => panic!("invalid seed {v}"),
+            },
         }
     }
 }
@@ -142,36 +153,42 @@ impl Field {
         .0
     }
 
+    // Southeast
     fn round1(&self) -> (usize, usize, Self) {
         let forward_row = (0..self.height).map(Index::Row);
         let forward_col = (0..self.width).map(Index::Col);
         self.energy_from_dir(forward_row, forward_col, 1, 1)
     }
 
+    // southwest
     fn round2(&self) -> (usize, usize, Self) {
         let forward_row = (0..self.height).map(Index::Row);
         let reverse_col = (0..self.width).rev().map(Index::Col);
         self.energy_from_dir(forward_row, reverse_col, 1, -1)
     }
 
+    // west
     fn round3(&self) -> (usize, usize, Self) {
         let reverse_col = (0..self.width).rev().map(Index::Col);
         let forward_row = (0..self.height).map(Index::Row);
         self.energy_from_dir(reverse_col, forward_row, -1, 0)
     }
 
+    // northweat
     fn round4(&self) -> (usize, usize, Self) {
         let reverse_row = (0..self.height).rev().map(Index::Row);
         let reverse_col = (0..self.width).rev().map(Index::Col);
         self.energy_from_dir(reverse_row, reverse_col, -1, -1)
     }
 
+    // northeast
     fn round5(&self) -> (usize, usize, Self) {
         let reverse_row = (0..self.height).rev().map(Index::Row);
         let forward_col = (0..self.width).map(Index::Col);
         self.energy_from_dir(reverse_row, forward_col, -1, 1)
     }
 
+    // east
     fn round6(&self) -> (usize, usize, Self) {
         let forward_col = (0..self.width).map(Index::Col);
         let forward_row = (0..self.height).map(Index::Row);
@@ -185,6 +202,34 @@ impl Field {
             + self.round4().0
             + self.round5().0
             + self.round6().0
+    }
+
+    fn part3_energy(&self) -> usize {
+        let mut total_ents = 0;
+        let mut total_energy = 0;
+
+        type FuncCall = dyn Fn(&Field) -> (usize, usize, Field);
+
+        let funcs: Vec<&FuncCall> = vec![
+            &Self::round1,
+            &Self::round2,
+            &Self::round3,
+            &Self::round4,
+            &Self::round5,
+            &Self::round6,
+        ];
+
+        let mut current_field = self.clone();
+        let mut idx = 0;
+        while total_ents < 100_000 {
+            let (energy, ents, next_field) = funcs[idx](&current_field);
+            total_ents += ents;
+            total_energy += energy;
+            current_field = next_field;
+            idx = (idx + 1) % funcs.len();
+        }
+
+        total_energy
     }
 
     fn energy_from_dir<O, I>(
@@ -235,11 +280,12 @@ impl Field {
                             }
                             Plot::Empty => {}
                             Plot::Seed(s) => {
-                                if s == 0 {
+                                if s == 1 {
                                     next_field.set(diag_outer, diag_inner, Plot::Ent(1));
                                 } else {
                                     next_field.set(diag_outer, diag_inner, Plot::Seed(s - 1));
                                 }
+                                shadow_height = shadow_height.saturating_sub(1);
                             }
                         }
                         diag_outer += delta_outer;
@@ -296,5 +342,11 @@ mod test {
         assert_eq!(32, field.round4().0);
         assert_eq!(30, field.round5().0);
         assert_eq!(32, field.round6().0);
+    }
+
+    #[test]
+    fn test_part3() {
+        let field = Field::new(include_str!("../test-input/part3").lines());
+        assert_eq!(899889, field.part3_energy());
     }
 }
