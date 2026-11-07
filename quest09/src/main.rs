@@ -1,4 +1,4 @@
-use std::{convert::Infallible, str::FromStr};
+use std::{collections::HashMap, convert::Infallible, str::FromStr};
 
 fn main() {
     let data = std::fs::read_to_string("input/everybody_codes_e2026_q09_p1.txt").expect("file");
@@ -7,7 +7,7 @@ fn main() {
         data.lines()
             .map(|line| line.parse::<Plant>().unwrap())
             .map(|plant| plant.time_limit())
-            .sum::<usize>()
+            .sum::<u128>()
     );
 
     let data = std::fs::read_to_string("input/everybody_codes_e2026_q09_p2.txt").expect("file");
@@ -16,24 +16,33 @@ fn main() {
         data.lines()
             .map(|line| line.parse::<Plant>().unwrap())
             .map(|plant| plant.leaf_limit())
-            .sum::<usize>()
+            .sum::<u128>()
+    );
+
+    let data = std::fs::read_to_string("input/everybody_codes_e2026_q09_p3.txt").expect("file");
+    println!(
+        "Quest 9, part 2 = {}",
+        data.lines()
+            .map(|line| line.parse::<Plant>().unwrap())
+            .map(|plant| plant.cached_leaf_limit())
+            .sum::<u128>()
     );
 }
 
 #[derive(Debug, PartialEq)]
 struct Plant {
     _id: usize,
-    growth: usize,
-    limit: usize,
+    growth: u128,
+    limit: u128,
 }
 
 impl Plant {
-    fn time_limit(&self) -> usize {
-        let mut branches = vec![1usize];
+    fn time_limit(&self) -> u128 {
+        let mut branches = vec![1u128];
         let mut splits = 0;
         let mut time = 1;
 
-        while splits + branches.iter().sum::<usize>() < self.limit {
+        while splits + branches.iter().sum::<u128>() < self.limit {
             time += 1;
             let mut next = Vec::new();
             for b in &branches {
@@ -54,12 +63,12 @@ impl Plant {
         time
     }
 
-    fn leaf_limit(&self) -> usize {
-        let mut branches = vec![1usize];
+    fn leaf_limit(&self) -> u128 {
+        let mut branches = vec![1u128];
         let mut splits = 0;
         let mut time = 1;
 
-        while branches.len() - splits < self.limit {
+        while branches.len() as u128 - splits < self.limit {
             time += 1;
             let mut next = Vec::new();
             for b in &branches {
@@ -78,6 +87,68 @@ impl Plant {
         }
 
         time
+    }
+
+    fn cached_leaf_limit(&self) -> u128 {
+        let mut cache = Cache::new(self.growth);
+
+        let mut time = self.growth;
+        loop {
+            let limit = cache.search(1, time) + 1;
+            if limit < self.limit {
+                time *= 2;
+            } else {
+                break;
+            }
+        }
+
+        let mut low = time / 2;
+        let mut high = time;
+        while low != high {
+            let mid = (high + low) / 2;
+            let value = cache.search(1, mid) + 1;
+            if value >= self.limit {
+                high = mid;
+            } else {
+                low = mid + 1;
+            }
+        }
+
+        low
+    }
+}
+
+struct Cache {
+    cache: HashMap<(u128, u128), u128>,
+    growth: u128,
+}
+
+impl Cache {
+    fn new(growth: u128) -> Self {
+        Self {
+            cache: HashMap::new(),
+            growth,
+        }
+    }
+
+    fn search(&mut self, branch_len: u128, time: u128) -> u128 {
+        if let Some(answer) = self.cache.get(&(branch_len, time)) {
+            return *answer;
+        }
+        let answer = if time == 0 {
+            0
+        } else {
+            let remaining = self.growth - branch_len;
+            if remaining >= time {
+                0
+            } else {
+                let delta = time - remaining;
+                1 + 2 * self.search(self.growth / 2, delta) + self.search(1, delta)
+            }
+        };
+
+        self.cache.insert((branch_len, time), answer);
+        answer
     }
 }
 
@@ -92,8 +163,8 @@ impl FromStr for Plant {
         let limit = words.next().unwrap();
 
         let _id = id.split_once('=').unwrap().1.parse::<usize>().unwrap();
-        let growth = growth.split_once('=').unwrap().1.parse::<usize>().unwrap();
-        let limit = limit.split_once('=').unwrap().1.parse::<usize>().unwrap();
+        let growth = growth.split_once('=').unwrap().1.parse::<u128>().unwrap();
+        let limit = limit.split_once('=').unwrap().1.parse::<u128>().unwrap();
 
         Ok(Self { _id, growth, limit })
     }
@@ -123,7 +194,7 @@ mod test {
             .lines()
             .map(|line| line.parse::<Plant>().unwrap())
             .map(|plant| plant.time_limit())
-            .sum::<usize>();
+            .sum::<u128>();
         assert_eq!(27, plant_time);
     }
 
@@ -134,7 +205,18 @@ mod test {
             .lines()
             .map(|line| line.parse::<Plant>().unwrap())
             .map(|plant| plant.leaf_limit())
-            .sum::<usize>();
+            .sum::<u128>();
+        assert_eq!(42, plant_time);
+    }
+
+    #[test]
+    fn test_part3() {
+        let data = include_str!("../test-input/part2"); // re-use part2 input
+        let plant_time = data
+            .lines()
+            .map(|line| line.parse::<Plant>().unwrap())
+            .map(|plant| plant.cached_leaf_limit())
+            .sum::<u128>();
         assert_eq!(42, plant_time);
     }
 }
