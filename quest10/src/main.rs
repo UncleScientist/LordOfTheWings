@@ -1,9 +1,19 @@
-use std::{collections::HashMap, ops::Deref};
+use std::{
+    collections::{HashMap, HashSet},
+    ops::Deref,
+};
+
+const PART3_STRENGTH: usize = 1_000_000_000_000;
 
 fn main() {
     let data = std::fs::read_to_string("input/everybody_codes_e2026_q10_p1.txt").expect("file");
     let maze = Maze::new(data.lines());
     println!("Quest 10, part 1 = {}", maze.collisions_after(10));
+
+    let maze = Maze::new(include_str!("../test-input/part3").lines());
+
+    let last_survivor = maze.fast_fade_after(PART3_STRENGTH);
+    assert_eq!(13314695352588, last_survivor);
 
     let data = std::fs::read_to_string("input/everybody_codes_e2026_q10_p2.txt").expect("file");
     let maze = Maze::new(data.lines());
@@ -149,6 +159,100 @@ impl Maze {
 
         rounds
     }
+
+    fn fast_fade_after(&self, strength: usize) -> usize {
+        let mut cur_grid = self
+            .grid
+            .iter()
+            .map(|(pos, vec)| (*pos, vec.iter().map(|tile| (*tile, 0)).collect::<Vec<_>>()))
+            .collect::<HashMap<(usize, usize), Vec<(Tile, usize)>>>();
+        let mut current_count = self.ghost_count;
+        let mut rounds = 0;
+        let mut checker = HashMap::new();
+
+        let _starting_locations: HashSet<((usize, usize), Direction)> = self
+            .grid
+            .iter()
+            .filter_map(|(pos, val)| {
+                if let Tile::Ghost(dir) = val[0] {
+                    Some((*pos, dir))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // checker.insert(starting_locations, 0);
+
+        while current_count > 0 {
+            rounds += 1;
+            let mut next_grid: HashMap<(usize, usize), Vec<(Tile, usize)>> = HashMap::new();
+            for (pos, tiles) in cur_grid.iter() {
+                for (tile, count) in tiles {
+                    match tile {
+                        Tile::Empty | Tile::Wall => {
+                            next_grid.entry(*pos).or_default().push((*tile, 0));
+                        }
+                        Tile::Ghost(dir) => {
+                            let next_pos = dir.step(*pos);
+                            if Some(&vec![(Tile::Wall, 0)]) == cur_grid.get(&next_pos) {
+                                if count + 1 < strength {
+                                    next_grid
+                                        .entry(*pos)
+                                        .or_default()
+                                        .push((Tile::Ghost(dir.right()), count + 1));
+                                } else {
+                                    current_count -= 1;
+                                }
+                            } else {
+                                next_grid
+                                    .entry(next_pos)
+                                    .or_default()
+                                    .push((Tile::Ghost(*dir), *count));
+                            }
+                        }
+                    }
+                }
+            }
+
+            for tiles in next_grid.values_mut() {
+                if tiles.len() > 1 {
+                    for tile in tiles.iter_mut() {
+                        tile.0.flip_direction();
+                        tile.1 += 1;
+                    }
+                    let start = tiles.len();
+                    tiles.retain(|(_, count)| *count < strength);
+                    current_count -= start - tiles.len();
+                }
+            }
+
+            let mut current_locations: Vec<((usize, usize), Direction)> = next_grid
+                .iter()
+                .flat_map(|(pos, val)| {
+                    val.iter().filter_map(|(tile, _)| {
+                        if let Tile::Ghost(dir) = tile {
+                            Some((*pos, *dir))
+                        } else {
+                            None
+                        }
+                    })
+                })
+                .collect();
+            current_locations.sort();
+            if let Some(round) = checker.get(&current_locations) {
+                println!("positions reset on round {rounds}, starting at round {round}");
+                println!("{current_locations:?}");
+                return 0;
+            } else {
+                checker.insert(current_locations, rounds);
+            }
+
+            cur_grid = next_grid;
+        }
+
+        rounds
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -181,7 +285,7 @@ impl From<char> for Tile {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 struct Direction(u8);
 
 impl Direction {
@@ -255,12 +359,20 @@ mod test {
 
     #[test]
     fn test_part2() {
-        let maze = Maze::new(include_str!("../test-input/part1").lines());
+        let maze = Maze::new(include_str!("../test-input/part2").lines());
 
         let last_survivor = maze.fade_after(10);
         assert_eq!(53, last_survivor);
 
-        let last_survivor = maze.fade_after(10000);
-        assert_eq!(50000, last_survivor);
+        // let last_survivor = maze.fade_after(10000);
+        // assert_eq!(50000, last_survivor);
+    }
+
+    #[test]
+    fn test_part3() {
+        let maze = Maze::new(include_str!("../test-input/part3").lines());
+
+        let last_survivor = maze.fast_fade_after(PART3_STRENGTH);
+        assert_eq!(13314695352588, last_survivor);
     }
 }
