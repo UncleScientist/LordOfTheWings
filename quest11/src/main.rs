@@ -8,12 +8,17 @@ fn main() {
     let data = std::fs::read_to_string("input/everybody_codes_e2026_q11_p1.txt").expect("file");
     let portal = Portal::new(data.lines());
     println!("Quest 11, part 1 = {}", portal.portal_resonance());
+
+    let data = std::fs::read_to_string("input/everybody_codes_e2026_q11_p2.txt").expect("file");
+    let portal = Portal::new(data.lines());
+    println!("{portal:?}");
+    println!("Quest 11, part 2 = {}", portal.advanced_portal_resonance());
 }
 
 #[derive(Debug, Default)]
 struct Portal {
     portals: usize,
-    connections: Vec<(usize, usize)>,
+    connections: HashSet<(usize, usize)>,
 }
 
 impl Portal {
@@ -26,15 +31,15 @@ impl Portal {
         let (_, portals) = line.split_once(' ').unwrap();
 
         let portals = portals.parse::<usize>().unwrap();
-        let mut connections = Vec::new();
+        let mut connections = HashSet::new();
 
         for line in iter {
             if !line.is_empty() {
                 let (start, end) = line.split_once(' ').unwrap();
                 let start = start.parse::<usize>().unwrap() - 1;
                 let end = end.parse::<usize>().unwrap() - 1;
-                connections.push((start, end));
-                connections.push((end, start));
+                connections.insert((start, end));
+                connections.insert((end, start));
             }
         }
 
@@ -44,7 +49,7 @@ impl Portal {
         }
     }
 
-    fn portal_strain(&self) -> usize {
+    fn simple_portal_strain(&self) -> usize {
         self.portals
             * if self.portals.is_multiple_of(2) {
                 // we have one directly opposite the first
@@ -88,8 +93,14 @@ impl Portal {
         total
     }
 
-    fn portal_strain_with_shortcuts(&self) -> usize {
+    fn portal_strain(
+        &self,
+        advanced: bool,
+        use_connections: bool,
+        extra: &Option<(usize, usize)>,
+    ) -> usize {
         let mut total = 0;
+        // println!(" -- {extra:?} --");
         for start in 0..self.portals {
             let mut subtotal = 0;
             for end in 0..self.portals {
@@ -99,13 +110,33 @@ impl Portal {
                 let dist = dijkstra(
                     &start,
                     |pos: &usize| {
-                        let left = (pos + self.portals - 1) % self.portals;
-                        let right = (pos + 1) % self.portals;
-
-                        let mut response = vec![(left, 1), (right, 1)];
-                        for c in &self.connections {
-                            if c.0 == *pos {
-                                response.push((c.1, 1));
+                        let mut response = if advanced {
+                            let r1 = (pos + 1) % self.portals;
+                            let r2 = (pos + 2) % self.portals;
+                            let r3 = (pos + 3) % self.portals;
+                            let l1 = (pos + self.portals - 1) % self.portals;
+                            let l2 = (pos + self.portals - 2) % self.portals;
+                            let l3 = (pos + self.portals - 3) % self.portals;
+                            vec![(r1, 1), (r2, 1), (r3, 1), (l1, 1), (l2, 1), (l3, 1)]
+                        } else {
+                            let left = (pos + self.portals - 1) % self.portals;
+                            let right = (pos + 1) % self.portals;
+                            vec![(left, 1), (right, 1)]
+                        };
+                        if use_connections {
+                            for c in &self.connections {
+                                if c.0 == *pos {
+                                    response.push((c.1, 1));
+                                }
+                            }
+                        }
+                        if let Some((first, second)) = extra {
+                            if *first == *pos {
+                                // println!("extra: {pos} -> {second}");
+                                response.push((*second, 1));
+                            } else if *second == *pos {
+                                // println!("extra: {pos} -> {first}");
+                                response.push((*first, 1));
                             }
                         }
                         response
@@ -125,10 +156,33 @@ impl Portal {
     }
 
     fn portal_resonance(&self) -> usize {
-        let s1 = self.portal_strain();
-        let s2 = self.portal_strain_with_shortcuts();
-        println!("{s1} - {s2} = {}", s1 - s2);
+        let s1 = self.simple_portal_strain();
+        let s2 = self.portal_strain(false, true, &None);
+        // println!("{s1} - {s2} = {}", s1 - s2);
         s1 - s2
+    }
+
+    fn advanced_portal_resonance(&self) -> usize {
+        let s1 = self.portal_strain(true, false, &None);
+
+        let mut min_resonance = usize::MAX;
+        let mut extras = self.connections.clone();
+        for pos in 0..self.portals {
+            for pair in (pos + 4)..=(pos + self.portals - 4) {
+                let pair = pair % self.portals;
+                if !extras.contains(&(pos, pair)) {
+                    extras.insert((pos, pair));
+                    extras.insert((pair, pos));
+                    // print!("adding extra pair ({:2}, {:2})", pos + 1, pair + 1);
+                    let s2 = self.portal_strain(true, true, &Some((pos, pair)));
+                    let resonance = s1 - s2;
+                    // println!(" -> {resonance}");
+                    min_resonance = min_resonance.min(resonance);
+                }
+            }
+        }
+
+        min_resonance
     }
 }
 
@@ -222,18 +276,26 @@ mod test {
     fn test_odd_portal_count() {
         let portal = Portal {
             portals: 11,
-            connections: Vec::new(),
+            connections: HashSet::new(),
         };
-        assert_eq!(330, portal.portal_strain());
+        assert_eq!(330, portal.simple_portal_strain());
     }
 
     #[test]
     fn test_31_portal_count() {
         let portal = Portal {
             portals: 31,
-            connections: Vec::new(),
+            connections: HashSet::new(),
         };
-        assert_eq!(7440, portal.portal_strain());
+        assert_eq!(7440, portal.simple_portal_strain());
         assert_eq!(7440, portal.dijkstra_strain());
+    }
+
+    #[test]
+    fn test_part2() {
+        let test_input = include_str!("../test-input/part2");
+        let portal = Portal::new(test_input.lines());
+        assert_eq!(120, portal.portal_strain(true, false, &None));
+        assert_eq!(6, portal.advanced_portal_resonance());
     }
 }
