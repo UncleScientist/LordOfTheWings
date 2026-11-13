@@ -13,9 +13,14 @@ fn main() {
     let portal = Portal::new(data.lines());
     // println!("{portal:?}");
     println!("Quest 11, part 2 = {}", portal.advanced_portal_resonance());
+
+    let data = std::fs::read_to_string("input/everybody_codes_e2026_q11_p3.txt").expect("file");
+    let portal = Portal::new(data.lines());
+    // println!("{portal:?}");
+    println!("Quest 11, part 3 = {}", portal.spaced_portal_resonance());
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 struct Portal {
     portals: usize,
     connections: HashSet<(usize, usize)>,
@@ -184,6 +189,111 @@ impl Portal {
 
         max_resonance
     }
+
+    fn spaced_portal_resonance(&self) -> usize {
+        let s1 = self.portal_strain(true, false, &None);
+        // println!( "{} normal = {s1}, connections = {:?}", self.portals, self.connections);
+
+        let step = self.portals / 8;
+
+        let mut overall_min_strain = usize::MAX;
+
+        for starting_portal in 0..2 {
+            let mut extras = self.connections.clone();
+            let mut portals = (starting_portal..(starting_portal + self.portals))
+                .step_by(step)
+                .map(|portal| portal % self.portals)
+                .collect::<Vec<_>>();
+            println!("{portals:?}");
+
+            let mut min_strain = usize::MAX;
+            let mut pair = (0, 0);
+            for (a, b) in portals.pairs() {
+                if !extras.contains(&(a, b)) {
+                    let strain = self.portal_strain(true, true, &Some((a, b)));
+                    println!("   ({a},{b}) -> {strain}");
+                    if strain < min_strain {
+                        min_strain = strain;
+                        pair = (a, b);
+                    }
+                }
+            }
+
+            let mut next_portal = self.clone();
+            portals.retain(|&x| x != pair.0 && x != pair.1);
+            println!("inserted {pair:?} @ {min_strain} | {portals:?}");
+
+            next_portal.connections.insert((pair.0, pair.1));
+            next_portal.connections.insert((pair.1, pair.0));
+
+            extras.insert((pair.0, pair.1));
+            extras.insert((pair.1, pair.0));
+
+            let mut min_strain = usize::MAX;
+            let mut pair = (0, 0);
+            for (a, b) in portals.pairs() {
+                if !extras.contains(&(a, b)) {
+                    let strain = next_portal.portal_strain(true, true, &Some((a, b)));
+                    println!("   ({a},{b}) -> {strain}");
+                    if strain < min_strain {
+                        min_strain = strain;
+                        pair = (a, b);
+                    }
+                }
+            }
+
+            let mut penultimate_portal = next_portal.clone();
+
+            portals.retain(|&x| x != pair.0 && x != pair.1);
+            println!("inserted {pair:?} @ {min_strain} | {portals:?}");
+
+            penultimate_portal.connections.insert((pair.0, pair.1));
+            penultimate_portal.connections.insert((pair.1, pair.0));
+
+            extras.insert((pair.0, pair.1));
+            extras.insert((pair.1, pair.0));
+
+            let mut min_strain = usize::MAX;
+            let mut pair = (0, 0);
+            for (a, b) in portals.pairs() {
+                if !extras.contains(&(a, b)) {
+                    let strain = penultimate_portal.portal_strain(true, true, &Some((a, b)));
+                    println!("   ({a},{b}) -> {strain}");
+                    if strain < min_strain {
+                        min_strain = strain;
+                        pair = (a, b);
+                    }
+                }
+            }
+
+            let mut final_portal = penultimate_portal.clone();
+            portals.retain(|&x| x != pair.0 && x != pair.1);
+            println!("inserted {pair:?} @ {min_strain} | {portals:?}");
+
+            final_portal.connections.insert((pair.0, pair.1));
+            final_portal.connections.insert((pair.1, pair.0));
+
+            extras.insert((pair.0, pair.1));
+            extras.insert((pair.1, pair.0));
+
+            let mut min_strain = usize::MAX;
+            let mut pair = (0, 0);
+            for (a, b) in portals.pairs() {
+                if !extras.contains(&(a, b)) {
+                    // println!(" > {a} <-> {b}");
+                    let strain = final_portal.portal_strain(true, true, &Some((a, b)));
+                    // println!("   (strain = {strain})");
+                    if strain < min_strain {
+                        min_strain = strain;
+                        pair = (a, b);
+                    }
+                }
+            }
+            println!("inserted {pair:?} @ {min_strain}");
+            overall_min_strain = overall_min_strain.min(min_strain);
+        }
+        s1 - overall_min_strain
+    }
 }
 
 pub fn dijkstra<T, S>(
@@ -260,6 +370,47 @@ where
 }
 */
 
+#[derive(Debug)]
+struct PairIterator<'a, T> {
+    i: usize,
+    j: usize,
+    list: &'a Vec<T>,
+}
+
+trait GeneratePairs<T> {
+    fn pairs<'a>(&'a self) -> PairIterator<'a, T>;
+}
+
+impl<T> GeneratePairs<T> for Vec<T> {
+    fn pairs<'a>(&'a self) -> PairIterator<'a, T> {
+        PairIterator {
+            i: 0,
+            j: 1,
+            list: self,
+        }
+    }
+}
+
+impl<'a, T: Copy> Iterator for PairIterator<'a, T> {
+    type Item = (T, T);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.i + 1 >= self.list.len() {
+            None
+        } else {
+            let retval = Some((self.list[self.i], self.list[self.j]));
+
+            self.j += 1;
+            if self.j >= self.list.len() {
+                self.i += 1;
+                self.j = self.i + 1;
+            }
+
+            retval
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -297,5 +448,47 @@ mod test {
         let portal = Portal::new(test_input.lines());
         assert_eq!(120, portal.portal_strain(true, false, &None));
         assert_eq!(6, portal.advanced_portal_resonance());
+    }
+
+    #[test]
+    fn test_part_3a() {
+        let test_input = include_str!("../test-input/part3.1");
+        let portal = Portal::new(test_input.lines());
+        assert_eq!(854, portal.spaced_portal_resonance());
+    }
+
+    #[test]
+    fn test_part_3b() {
+        let test_input = include_str!("../test-input/part3.2");
+        let portal = Portal::new(test_input.lines());
+        assert_eq!(9634, portal.spaced_portal_resonance());
+    }
+
+    #[test]
+    fn test_pair_iterator() {
+        let vec = vec![2, 3, 5, 7, 11, 13];
+        let mut pair_iter = vec.pairs();
+
+        assert_eq!(Some((2, 3)), pair_iter.next());
+        assert_eq!(Some((2, 5)), pair_iter.next());
+        assert_eq!(Some((2, 7)), pair_iter.next());
+        assert_eq!(Some((2, 11)), pair_iter.next());
+        assert_eq!(Some((2, 13)), pair_iter.next());
+
+        assert_eq!(Some((3, 5)), pair_iter.next());
+        assert_eq!(Some((3, 7)), pair_iter.next());
+        assert_eq!(Some((3, 11)), pair_iter.next());
+        assert_eq!(Some((3, 13)), pair_iter.next());
+
+        assert_eq!(Some((5, 7)), pair_iter.next());
+        assert_eq!(Some((5, 11)), pair_iter.next());
+        assert_eq!(Some((5, 13)), pair_iter.next());
+
+        assert_eq!(Some((7, 11)), pair_iter.next());
+        assert_eq!(Some((7, 13)), pair_iter.next());
+
+        assert_eq!(Some((11, 13)), pair_iter.next());
+
+        assert_eq!(None, pair_iter.next());
     }
 }
