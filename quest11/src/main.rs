@@ -11,7 +11,7 @@ fn main() {
 
     let data = std::fs::read_to_string("input/everybody_codes_e2026_q11_p2.txt").expect("file");
     let portal = Portal::new(data.lines());
-    println!("{portal:?}");
+    // println!("{portal:?}");
     println!("Quest 11, part 2 = {}", portal.advanced_portal_resonance());
 }
 
@@ -165,7 +165,7 @@ impl Portal {
     fn advanced_portal_resonance(&self) -> usize {
         let s1 = self.portal_strain(true, false, &None);
 
-        let mut min_resonance = usize::MAX;
+        let mut max_resonance = 0;
         let mut extras = self.connections.clone();
         for pos in 0..self.portals {
             for pair in (pos + 4)..=(pos + self.portals - 4) {
@@ -177,12 +177,12 @@ impl Portal {
                     let s2 = self.portal_strain(true, true, &Some((pos, pair)));
                     let resonance = s1 - s2;
                     // println!(" -> {resonance}");
-                    min_resonance = min_resonance.min(resonance);
+                    max_resonance = max_resonance.max(resonance);
                 }
             }
         }
 
-        min_resonance
+        max_resonance
     }
 }
 
