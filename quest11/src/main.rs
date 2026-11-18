@@ -4,20 +4,22 @@ use std::{
     ops::Add,
 };
 
+type Connection = Vec<HashSet<(usize, usize)>>;
+
 fn main() {
     let data = std::fs::read_to_string("input/everybody_codes_e2026_q11_p1.txt").expect("file");
     let portal = Portal::new(data.lines());
-    println!("Quest 11, part 1 = {}", portal.portal_resonance());
+    // println!("Quest 11, part 1 = {}", portal.portal_resonance());
+    // println!("Quest 11, part 1 = {}", portal.part1());
 
     let data = std::fs::read_to_string("input/everybody_codes_e2026_q11_p2.txt").expect("file");
     let portal = Portal::new(data.lines());
-    // println!("{portal:?}");
-    println!("Quest 11, part 2 = {}", portal.advanced_portal_resonance());
+    // println!("Quest 11, part 2 = {}", portal.advanced_portal_resonance());
+    // println!("Quest 11, part 2 = {}", portal.part2());
 
     let data = std::fs::read_to_string("input/everybody_codes_e2026_q11_p3.txt").expect("file");
     let portal = Portal::new(data.lines());
-    // println!("{portal:?}");
-    println!("Quest 11, part 3 = {}", portal.spaced_portal_resonance());
+    println!("Quest 11, part 3 = {}", portal.part3());
 }
 
 #[derive(Debug, Default, Clone)]
@@ -68,6 +70,175 @@ impl Portal {
             }
     }
 
+    fn part1(&self) -> usize {
+        let mut cur_connections = Vec::<HashSet<(usize, usize)>>::new();
+        cur_connections.resize_with(self.portals, Default::default);
+
+        for portal in 0..self.portals {
+            cur_connections[portal].insert((((portal + 1) % self.portals), 1));
+            cur_connections[portal].insert((((portal + self.portals - 1) % self.portals), 1));
+        }
+
+        for (a, b) in &self.connections {
+            cur_connections[*a].insert((*b, 1));
+            cur_connections[*b].insert((*a, 1));
+        }
+
+        self.simple_portal_strain() - self.calc_total_strain(&cur_connections)
+    }
+
+    fn part2(&self) -> usize {
+        let mut cur_connections = self.generate_advanced_portals();
+        let basic_strain = self.calc_total_strain(&cur_connections);
+
+        for (a, b) in &self.connections {
+            cur_connections[*a].insert((*b, 1));
+            cur_connections[*b].insert((*a, 1));
+        }
+
+        let mut min_strain = usize::MAX;
+        for from in 0..self.portals {
+            for to in (from + 4)..=(from + self.portals - 4) {
+                let to = to % self.portals;
+                if !cur_connections[from].contains(&(to, 1)) {
+                    cur_connections[from].insert((to, 1));
+                    cur_connections[to].insert((from, 1));
+                    let strain = self.calc_total_strain(&cur_connections);
+                    min_strain = min_strain.min(strain);
+                    cur_connections[from].remove(&(to, 1));
+                    cur_connections[to].remove(&(from, 1));
+                }
+            }
+        }
+
+        basic_strain - min_strain
+    }
+
+    fn part3(&self) -> usize {
+        let mut cur_connections = self.generate_advanced_portals();
+        let basic_strain = self.calc_total_strain(&cur_connections);
+
+        for (a, b) in &self.connections {
+            cur_connections[*a].insert((*b, 1));
+            cur_connections[*b].insert((*a, 1));
+        }
+
+        let step = self.portals / 8;
+
+        let mut min_strain = usize::MAX;
+        for starting_portal in 0..step {
+            let portals = (starting_portal..(starting_portal + self.portals))
+                .step_by(step)
+                .map(|portal| portal % self.portals)
+                .collect::<Vec<_>>();
+            println!("{starting_portal:3} | {portals:?}");
+            let strain = self.min_strain_for_set(&portals, &cur_connections);
+            min_strain = min_strain.min(strain);
+        }
+
+        basic_strain - min_strain
+    }
+
+    fn min_strain_for_set(&self, pairs: &[usize], nextconn: &Connection) -> usize {
+        let mut cache = HashMap::<Vec<(usize, usize)>, usize>::new();
+        self.min_strain_debug(&mut cache, pairs, nextconn, HashSet::new())
+    }
+
+    fn min_strain_debug(
+        &self,
+        mut cache: &mut HashMap<Vec<(usize, usize)>, usize>,
+        pairs: &[usize],
+        nextconn: &Connection,
+        set: HashSet<(usize, usize)>,
+    ) -> usize {
+        if pairs.is_empty() {
+            let mut vec: Vec<(usize, usize)> = set.iter().copied().collect();
+            vec.sort();
+
+            if let Some(result) = cache.get(&vec) {
+                return *result;
+            }
+
+            let strain = self.calc_total_strain(&nextconn);
+            println!(" > {set:?} {strain}");
+            cache.insert(vec, strain);
+            return strain;
+        }
+
+        let mut min_strain = usize::MAX;
+
+        let indent = 8 - pairs.len();
+        // println!("{:indent$}{:?}", "", pairs);
+        for pair in pairs.pairs() {
+            if !nextconn[pair.0].contains(&(pair.1, 1)) {
+                let mut nextconn = nextconn.clone();
+                nextconn[pair.0].insert((pair.1, 1));
+                nextconn[pair.1].insert((pair.0, 1));
+                let mut set = set.clone();
+                set.insert((pair.0, pair.1));
+                set.insert((pair.1, pair.0));
+                let strain = self.min_strain_debug(
+                    &mut cache,
+                    pairs
+                        .iter()
+                        .filter(|p| **p != pair.0 && **p != pair.1)
+                        .copied()
+                        .collect::<Vec<_>>()
+                        .as_slice(),
+                    &nextconn,
+                    set,
+                );
+                min_strain = min_strain.min(strain);
+            }
+        }
+
+        min_strain
+    }
+
+    fn generate_advanced_portals(&self) -> Connection {
+        let mut cur_connections = Connection::new();
+        cur_connections.resize_with(self.portals, Default::default);
+
+        for portal in 0..self.portals {
+            cur_connections[portal].insert((((portal + 1) % self.portals), 1));
+            cur_connections[portal].insert((((portal + 2) % self.portals), 1));
+            cur_connections[portal].insert((((portal + 3) % self.portals), 1));
+            cur_connections[portal].insert((((portal + self.portals - 1) % self.portals), 1));
+            cur_connections[portal].insert((((portal + self.portals - 2) % self.portals), 1));
+            cur_connections[portal].insert((((portal + self.portals - 3) % self.portals), 1));
+        }
+
+        cur_connections
+    }
+
+    fn calc_total_strain(&self, connections: &[HashSet<(usize, usize)>]) -> usize {
+        let mut total = 0;
+        for start in 0..self.portals {
+            for end in 0..self.portals {
+                if start == end {
+                    continue;
+                }
+                total += self.calc_strain_for(&connections, start, end);
+            }
+        }
+        total
+    }
+
+    fn calc_strain_for(
+        &self,
+        connections: &[HashSet<(usize, usize)>],
+        start: usize,
+        end: usize,
+    ) -> usize {
+        dijkstra(
+            &start,
+            |pos: &usize| connections[*pos].clone(),
+            |pos: &usize| *pos == end,
+        )
+        .unwrap()
+        .1
+    }
+
     #[cfg(test)]
     fn dijkstra_strain(&self) -> usize {
         let mut total = 0;
@@ -98,6 +269,7 @@ impl Portal {
         total
     }
 
+    #[cfg(test)]
     fn portal_strain(
         &self,
         advanced: bool,
@@ -160,6 +332,7 @@ impl Portal {
         total
     }
 
+    #[cfg(test)]
     fn portal_resonance(&self) -> usize {
         let s1 = self.simple_portal_strain();
         let s2 = self.portal_strain(false, true, &None);
@@ -167,6 +340,7 @@ impl Portal {
         s1 - s2
     }
 
+    #[cfg(test)]
     fn advanced_portal_resonance(&self) -> usize {
         let s1 = self.portal_strain(true, false, &None);
 
@@ -190,6 +364,7 @@ impl Portal {
         max_resonance
     }
 
+    #[cfg(test)]
     fn spaced_portal_resonance(&self) -> usize {
         let s1 = self.portal_strain(true, false, &None);
         // println!( "{} normal = {s1}, connections = {:?}", self.portals, self.connections);
@@ -198,7 +373,7 @@ impl Portal {
 
         let mut overall_min_strain = usize::MAX;
 
-        for starting_portal in 0..2 {
+        for starting_portal in 0..step {
             let mut extras = self.connections.clone();
             let mut portals = (starting_portal..(starting_portal + self.portals))
                 .step_by(step)
@@ -296,14 +471,15 @@ impl Portal {
     }
 }
 
-pub fn dijkstra<T, S>(
+pub fn dijkstra<T, S, I>(
     start: &T,
-    neighbors: impl Fn(&T) -> Vec<(T, S)>,
+    neighbors: impl Fn(&T) -> I,
     is_end: impl Fn(&T) -> bool,
 ) -> Option<(T, S)>
 where
     T: Clone + Hash + Eq,
     S: Copy + From<u8> + Ord + Add<Output = S>,
+    I: IntoIterator<Item = (T, S)>,
 {
     let zero: S = 0u8.into();
     let mut queue = BTreeMap::from([(zero, HashSet::from([start.clone()]))]);
@@ -374,11 +550,21 @@ where
 struct PairIterator<'a, T> {
     i: usize,
     j: usize,
-    list: &'a Vec<T>,
+    list: &'a [T],
 }
 
 trait GeneratePairs<T> {
     fn pairs<'a>(&'a self) -> PairIterator<'a, T>;
+}
+
+impl<T> GeneratePairs<T> for &[T] {
+    fn pairs<'a>(&'a self) -> PairIterator<'a, T> {
+        PairIterator {
+            i: 0,
+            j: 1,
+            list: self,
+        }
+    }
 }
 
 impl<T> GeneratePairs<T> for Vec<T> {
@@ -386,7 +572,7 @@ impl<T> GeneratePairs<T> for Vec<T> {
         PairIterator {
             i: 0,
             j: 1,
-            list: self,
+            list: self.as_slice(),
         }
     }
 }
@@ -421,6 +607,7 @@ mod test {
         let portal = Portal::new(test_input.lines());
 
         assert_eq!(60, portal.portal_resonance());
+        assert_eq!(60, portal.part1());
     }
 
     #[test]
@@ -448,20 +635,22 @@ mod test {
         let portal = Portal::new(test_input.lines());
         assert_eq!(120, portal.portal_strain(true, false, &None));
         assert_eq!(6, portal.advanced_portal_resonance());
+        assert_eq!(6, portal.part2());
     }
 
     #[test]
     fn test_part_3a() {
         let test_input = include_str!("../test-input/part3.1");
         let portal = Portal::new(test_input.lines());
-        assert_eq!(854, portal.spaced_portal_resonance());
+        assert_eq!(854, portal.part3());
     }
 
     #[test]
     fn test_part_3b() {
         let test_input = include_str!("../test-input/part3.2");
         let portal = Portal::new(test_input.lines());
-        assert_eq!(9634, portal.spaced_portal_resonance());
+        assert_eq!(9634, portal.part3());
+        // assert_eq!(9634, portal.spaced_portal_resonance());
     }
 
     #[test]
