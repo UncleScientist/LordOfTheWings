@@ -8,6 +8,10 @@ fn main() {
     let data = std::fs::read_to_string("input/everybody_codes_e2026_q12_p2.txt").expect("file");
     let stacks = Stacks::new(data.lines());
     println!("Quest 12, part 2 = {}", stacks.min_spells());
+
+    let data = std::fs::read_to_string("input/everybody_codes_e2026_q12_p3.txt").expect("file");
+    let stacks = Stacks::new(data.lines());
+    println!("Quest 12, part 3 = {}", stacks.min_spells());
 }
 
 #[derive(Debug)]
@@ -58,46 +62,136 @@ impl Point {
 }
 
 impl Block {
-    fn shoot_horizontal(&self) -> Self {
-        Self {
-            blobs: self
-                .blobs
-                .iter()
-                .filter_map(|point| {
-                    if point.row > 0 {
-                        Some(Point::new(point.row - 1, point.col))
-                    } else {
-                        None
-                    }
-                })
-                .collect(),
-            width: self.width,
-            height: self.height - 1,
+    fn shoot_horizontally(&self) -> Self {
+        let mut c = 0;
+
+        while c < self.width && !self.blobs.contains(&Point::new(0, c)) {
+            c += 1;
         }
+        assert!(c < self.width);
+
+        let mut blobs = self.blobs.clone();
+        while c < self.width && self.blobs.contains(&Point::new(0, c)) {
+            blobs.remove(&Point::new(0, c));
+            c += 1;
+        }
+
+        let mut more = false;
+        while c < self.width {
+            if self.blobs.contains(&Point::new(0, c)) {
+                more = true;
+                break;
+            }
+            c += 1;
+        }
+
+        let (blobs, new_width, new_height) = if more {
+            (blobs, self.width, self.height)
+        } else {
+            let mut new_width = self.width - 1;
+            for r in 0..self.height {
+                if blobs.contains(&Point::new(r, new_width)) {
+                    new_width = self.width;
+                    break;
+                }
+            }
+            (
+                self.blobs
+                    .iter()
+                    .filter_map(|point| {
+                        if point.row > 0 {
+                            Some(Point::new(point.row - 1, point.col))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect(),
+                new_width,
+                self.height - 1,
+            )
+        };
+        let blobs = Self::normalize(blobs, new_width, new_height, 0, 0);
+        let result = if more {
+            Self { blobs, ..*self }
+        } else {
+            Self {
+                blobs,
+                width: new_width,
+                height: new_height,
+            }
+        };
+        result
     }
 
-    fn shoot_vertical(&self) -> Self {
-        Self {
-            blobs: self
-                .blobs
-                .iter()
-                .filter_map(|point| {
-                    if point.col > 0 {
-                        Some(Point::new(point.row, point.col - 1))
-                    } else {
-                        None
-                    }
-                })
-                .collect(),
-            width: self.width - 1,
-            height: self.height,
+    fn shoot_vertically(&self) -> Self {
+        let mut r = 0;
+
+        while r < self.height && !self.blobs.contains(&Point::new(r, 0)) {
+            r += 1;
         }
+        assert!(r < self.height);
+
+        let mut blobs = self.blobs.clone();
+        while r < self.height && self.blobs.contains(&Point::new(r, 0)) {
+            blobs.remove(&Point::new(r, 0));
+            r += 1;
+        }
+
+        let mut more = false;
+        while r < self.height {
+            if self.blobs.contains(&Point::new(r, 0)) {
+                more = true;
+                break;
+            }
+            r += 1;
+        }
+
+        let (blobs, new_width, new_height) = if more {
+            (blobs, self.width, self.height)
+        } else {
+            let mut new_height = self.height - 1;
+            for c in 0..self.width {
+                if blobs.contains(&Point::new(new_height, c)) {
+                    new_height = self.height;
+                    break;
+                }
+            }
+            (
+                self.blobs
+                    .iter()
+                    .filter_map(|point| {
+                        if point.col > 0 {
+                            Some(Point::new(point.row, point.col - 1))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect(),
+                self.width - 1,
+                new_height,
+            )
+        };
+
+        let blobs = Self::normalize(blobs, new_width, new_height, 0, 0);
+
+        let result = if more {
+            Self { blobs, ..*self }
+        } else {
+            Self {
+                blobs,
+                width: new_width,
+                height: new_height,
+            }
+        };
+        result
     }
 
     fn min_spells(&self) -> usize {
         let mut cache = HashMap::<Vec<Point>, usize>::new();
 
-        self.min_spells_cached(&mut cache)
+        let result = self.min_spells_cached(&mut cache);
+
+        result
     }
 
     fn min_spells_cached(&self, cache: &mut HashMap<Vec<Point>, usize>) -> usize {
@@ -111,11 +205,11 @@ impl Block {
         let answer = if self.width == 1 || self.height == 1 {
             1
         } else {
-            let h = self.shoot_horizontal();
+            let h = self.shoot_horizontally();
             if h.blobs.is_empty() {
                 return 1;
             }
-            let v = self.shoot_vertical();
+            let v = self.shoot_vertically();
             if v.blobs.is_empty() {
                 return 1;
             }
@@ -128,14 +222,17 @@ impl Block {
         answer
     }
 
-    fn new(inblobs: HashSet<Point>) -> Self {
-        let min_row = inblobs.iter().map(|point| point.row).min().unwrap();
-        let min_col = inblobs.iter().map(|point| point.col).min().unwrap();
-        let max_row = inblobs.iter().map(|point| point.row).max().unwrap();
-        let max_col = inblobs.iter().map(|point| point.col).max().unwrap();
+    fn normalize(
+        inblobs: HashSet<Point>,
+        width: usize,
+        height: usize,
+        min_row: usize,
+        min_col: usize,
+    ) -> HashSet<Point> {
+        if width == 0 || height == 0 {
+            return inblobs;
+        }
 
-        let height = max_row - min_row + 1;
-        let width = max_col - min_col + 1;
         let mut blobs: HashSet<Point> = inblobs
             .into_iter()
             .map(|point| Point::new(point.row - min_row, point.col - min_col))
@@ -154,6 +251,19 @@ impl Block {
                 .collect();
         }
 
+        blobs
+    }
+
+    fn new(inblobs: HashSet<Point>) -> Self {
+        let min_row = inblobs.iter().map(|point| point.row).min().unwrap();
+        let min_col = inblobs.iter().map(|point| point.col).min().unwrap();
+        let max_row = inblobs.iter().map(|point| point.row).max().unwrap();
+        let max_col = inblobs.iter().map(|point| point.col).max().unwrap();
+
+        let height = max_row - min_row + 1;
+        let width = max_col - min_col + 1;
+        let blobs = Self::normalize(inblobs, width, height, min_row, min_col);
+
         Self {
             blobs,
             height,
@@ -166,6 +276,8 @@ impl Block {
             for col in 0..self.width {
                 if self.blobs.contains(&Point::new(row, col)) {
                     print!("#");
+                } else {
+                    print!(".");
                 }
             }
             println!();
@@ -228,15 +340,7 @@ impl Stacks {
     }
 
     fn min_spells(&self) -> usize {
-        self.blocks
-            .iter()
-            .map(|block| {
-                // block._print();
-                let dim = block.min_spells();
-                // println!(" > {dim}");
-                dim
-            })
-            .sum()
+        self.blocks.iter().map(|block| block.min_spells()).sum()
     }
 }
 
@@ -263,5 +367,78 @@ mod test {
         let data = include_str!("../test-input/part2b");
         let stacks = Stacks::new(data.lines());
         assert_eq!(23, stacks.min_spells());
+    }
+
+    #[test]
+    fn test_part3a() {
+        let data = include_str!("../test-input/part3a");
+        let stacks = Stacks::new(data.lines());
+        assert_eq!(8, stacks.min_spells());
+    }
+
+    #[test]
+    fn test_part3b() {
+        let data = include_str!("../test-input/part3b");
+        let stacks = Stacks::new(data.lines());
+        assert_eq!(29, stacks.min_spells());
+    }
+
+    #[test]
+    fn test_part3c() {
+        let data = include_str!("../test-input/part3c");
+        let stacks = Stacks::new(data.lines());
+        assert_eq!(16, stacks.min_spells());
+    }
+
+    #[test]
+    fn test_horizontal_shot() {
+        let block = Block {
+            blobs: vec![Point::new(0, 0), Point::new(0, 1), Point::new(0, 2)]
+                .into_iter()
+                .collect(),
+            height: 1,
+            width: 3,
+        };
+        let shot = block.shoot_horizontally();
+        assert_eq!(0, shot.height);
+    }
+
+    #[test]
+    fn test_horizontal_shot_with_gap() {
+        let block = Block {
+            blobs: vec![
+                Point::new(0, 0),
+                Point::new(0, 1),
+                Point::new(0, 2),
+                Point::new(0, 5),
+                Point::new(0, 6),
+                Point::new(0, 7),
+            ]
+            .into_iter()
+            .collect(),
+            height: 1,
+            width: 8,
+        };
+        let shot = block.shoot_horizontally();
+        let remaining: HashSet<Point> = vec![Point::new(0, 0), Point::new(0, 1), Point::new(0, 2)]
+            .into_iter()
+            .collect();
+        assert_eq!(1, shot.height);
+        assert_eq!(remaining, shot.blobs);
+
+        let final_shot = shot.shoot_horizontally();
+        assert_eq!(0, final_shot.height);
+        assert!(final_shot.blobs.is_empty());
+    }
+
+    #[test]
+    fn test_hole() {
+        let lines = r#"##########
+##########
+####..####
+##########
+##########"#;
+        let stacks = Stacks::new(lines.lines());
+        assert_eq!(6, stacks.min_spells());
     }
 }
